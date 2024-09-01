@@ -20,10 +20,14 @@ class SettingsViewController: UITableViewController {
     
     @IBOutlet weak var episodeSortingSegmentedControl: UISegmentedControl!
     
+    @IBOutlet weak var holdSpeedSteppper: UIStepper!
+    @IBOutlet weak var holdSpeeedLabel: UILabel!
+    
     let githubURL = "https://github.com/cranci1/Ryu/"
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        setupHoldSpeedStepper()
         loadUserDefaults()
         setupMenu()
         
@@ -33,6 +37,26 @@ class SettingsViewController: UITableViewController {
         
         let isReverseSorted = UserDefaults.standard.bool(forKey: "isEpisodeReverseSorted")
         episodeSortingSegmentedControl.selectedSegmentIndex = isReverseSorted ? 1 : 0
+    }
+    
+    private func setupHoldSpeedStepper() {
+        let holdSpeed = UserDefaults.standard.float(forKey: "holdSpeedPlayer")
+        holdSpeedSteppper.value = Double(holdSpeed)
+        holdSpeedSteppper.minimumValue = 0.50
+        holdSpeedSteppper.maximumValue = 5.0
+        holdSpeedSteppper.stepValue = 0.25
+        updateHoldSpeedLabel()
+    }
+    
+    @IBAction func holdSpeedStepperValueChanged(_ sender: UIStepper) {
+        let holdSpeed = Float(sender.value)
+        UserDefaults.standard.set(holdSpeed, forKey: "holdSpeedPlayer")
+        updateHoldSpeedLabel()
+    }
+    
+    private func updateHoldSpeedLabel() {
+        let holdSpeeed = UserDefaults.standard.float(forKey: "holdSpeedPlayer")
+        holdSpeeedLabel.text = String(format: "Hold Speed player: %.2fx", holdSpeeed)
     }
     
     @IBAction func episodeSortingChanged(_ sender: UISegmentedControl) {
@@ -51,10 +75,17 @@ class SettingsViewController: UITableViewController {
     }
     
     @IBAction func selectSourceButtonTapped(_ sender: UIButton) {
-        SourceMenu.showSourceSelector(from: self, sourceView: sender)
-        
-        if let selectedOption = UserDefaults.standard.string(forKey: "selectedMediaSource") {
-            sourceButton.setTitle(selectedOption, for: .normal)
+        SourceMenu.showSourceSelector(from: self, sourceView: sender) { [weak self] in
+            self?.updateSourceButtonTitle()
+        }
+    }
+
+    private func updateSourceButtonTitle() {
+        if let selectedSourceRawValue = UserDefaults.standard.string(forKey: "selectedMediaSource"),
+           let selectedSource = MediaSource(rawValue: selectedSourceRawValue) {
+            sourceButton.setTitle(selectedSource.displayName, for: .normal)
+        } else {
+            sourceButton.setTitle("Select Source", for: .normal)
         }
     }
     
@@ -62,7 +93,8 @@ class SettingsViewController: UITableViewController {
         let defaultIcon = UIImage(systemName: "play.rectangle.fill")
         let infuseIcon = UIImage(systemName: "flame")
         let vlcIcon = UIImage(systemName: "film")
-        let outIcon = UIImage(systemName: "play.circle.fill")
+        let outplayerIcon = UIImage(systemName: "play.circle.fill")
+        let experimentalIcon = UIImage(systemName: "bolt")
 
         let action1 = UIAction(title: "Default", image: defaultIcon, handler: { [weak self] _ in
             UserDefaults.standard.set("Default", forKey: "mediaPlayerSelected")
@@ -76,12 +108,16 @@ class SettingsViewController: UITableViewController {
             UserDefaults.standard.set("Infuse", forKey: "mediaPlayerSelected")
             self?.playerButton.setTitle("Infuse", for: .normal)
         })
-        let action4 = UIAction(title: "Outplayer", image: outIcon, handler: { [weak self] _ in
-            UserDefaults.standard.set("Outplayer", forKey: "mediaPlayerSelected")
-            self?.playerButton.setTitle("Outplayer", for: .normal)
+        let action4 = UIAction(title: "OutPlayer", image: outplayerIcon, handler: { [weak self] _ in
+            UserDefaults.standard.set("OutPlayer", forKey: "mediaPlayerSelected")
+            self?.playerButton.setTitle("OutPlayer", for: .normal)
+        })
+        let action5 = UIAction(title: "Experimental", image: experimentalIcon, handler: { [weak self] _ in
+            UserDefaults.standard.set("Experimental", forKey: "mediaPlayerSelected")
+            self?.playerButton.setTitle("Experimental", for: .normal)
         })
 
-        let menu = UIMenu(title: "Select Media Player", children: [action1, action2, action3, action4])
+        let menu = UIMenu(title: "Select Media Player", children: [action1, action2, action3, action4, action5])
         
         playerButton.menu = menu
         playerButton.showsMenuAsPrimaryAction = true
@@ -100,6 +136,9 @@ class SettingsViewController: UITableViewController {
         landScapeSwitch.isOn = UserDefaults.standard.bool(forKey: "AlwaysLandscape")
         browserPlayerSwitch.isOn = UserDefaults.standard.bool(forKey: "browserPlayer")
         mergeActivitySwitch.isOn = UserDefaults.standard.bool(forKey: "mergeWatching")
+        
+        let holdSpeeed = UserDefaults.standard.float(forKey: "holdSpeedPlayer")
+        holdSpeeedLabel.text = String(format: "Hold Speed player: %.2fx", holdSpeeed)
     }
     
     @IBAction func clearCache(_ sender: Any) {
@@ -225,6 +264,39 @@ class SettingsViewController: UITableViewController {
         if let domain = Bundle.main.bundleIdentifier {
             UserDefaults.standard.removePersistentDomain(forName: domain)
             UserDefaults.standard.synchronize()
+            
+            NotificationCenter.default.post(name: .appDataReset, object: nil)
+        }
+    }
+    
+    @IBAction func deleteAllDonloads(_ sender: UIButton) {
+        let alertController = UIAlertController(title: "Confirm Deletion", message: "Are you sure you want to delete all downloads? This action cannot be undone.", preferredStyle: .alert)
+        
+        let deleteAction = UIAlertAction(title: "Delete", style: .destructive) { [weak self] _ in
+            self?.performDeletion()
+        }
+        
+        let cancelAction = UIAlertAction(title: "Cancel", style: .cancel, handler: nil)
+        
+        alertController.addAction(deleteAction)
+        alertController.addAction(cancelAction)
+        
+        present(alertController, animated: true, completion: nil)
+    }
+
+    private func performDeletion() {
+        let fileManager = FileManager.default
+        do {
+            let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            
+            let fileURLs = try fileManager.contentsOfDirectory(at: documentsURL, includingPropertiesForKeys: nil)
+            for fileURL in fileURLs {
+                try fileManager.removeItem(at: fileURL)
+            }
+            
+            showAlert(message: "All Downloads have been deleted successfully.")
+        } catch {
+            showAlert(message: "Failed to delete all downloads: \(error.localizedDescription)")
         }
     }
 }

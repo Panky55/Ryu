@@ -28,6 +28,10 @@ class ExternalVideoPlayer3rb: UIViewController, GCKRemoteMediaClientListener {
     private weak var animeDetailsViewController: AnimeDetailViewController?
     private var timeObserverToken: Any?
     
+    private var originalRate: Float = 1.0
+    private var holdGesture: UILongPressGestureRecognizer?
+    private var qualityOptions: [(label: String, url: URL)] = []
+    
     init(streamURL: String, cell: EpisodeCell, fullURL: String, animeDetailsViewController: AnimeDetailViewController) {
         self.streamURL = streamURL
         self.cell = cell
@@ -36,7 +40,7 @@ class ExternalVideoPlayer3rb: UIViewController, GCKRemoteMediaClientListener {
         
         let userDefaultsRetries = UserDefaults.standard.integer(forKey: "maxRetries")
         self.maxRetries = userDefaultsRetries > 0 ? userDefaultsRetries : 10
-
+        
         super.init(nibName: nil, bundle: nil)
     }
     
@@ -48,6 +52,12 @@ class ExternalVideoPlayer3rb: UIViewController, GCKRemoteMediaClientListener {
         super.viewDidLoad()
         setupUI()
         loadInitialURL()
+        setupHoldGesture()
+        setupNotificationObserver()
+    }
+    
+    private func setupNotificationObserver() {
+        NotificationCenter.default.addObserver(self, selector: #selector(playerItemDidReachEnd), name: .AVPlayerItemDidPlayToEndTime, object: player?.currentItem)
     }
     
     override func viewDidDisappear(_ animated: Bool) {
@@ -55,10 +65,64 @@ class ExternalVideoPlayer3rb: UIViewController, GCKRemoteMediaClientListener {
         cleanup()
     }
     
+    override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
+        if UserDefaults.standard.bool(forKey: "AlwaysLandscape") {
+            return .landscape
+        } else {
+            return .all
+        }
+    }
+    
+    override var prefersHomeIndicatorAutoHidden: Bool {
+        return true
+    }
+    
+    override var childForHomeIndicatorAutoHidden: UIViewController? {
+        return playerViewController
+    }
+    
+    override var prefersStatusBarHidden: Bool {
+        return true
+    }
+    
+    override var childForStatusBarHidden: UIViewController? {
+        return playerViewController
+    }
+    
     private func setupUI() {
         view.backgroundColor = UIColor.secondarySystemBackground
         setupActivityIndicator()
         setupWebView()
+    }
+    
+    private func setupHoldGesture() {
+        holdGesture = UILongPressGestureRecognizer(target: self, action: #selector(handleHoldGesture(_:)))
+        holdGesture?.minimumPressDuration = 0.5
+        if let holdGesture = holdGesture {
+            view.addGestureRecognizer(holdGesture)
+        }
+    }
+    
+    @objc private func handleHoldGesture(_ gesture: UILongPressGestureRecognizer) {
+        switch gesture.state {
+        case .began:
+            beginHoldSpeed()
+        case .ended, .cancelled:
+            endHoldSpeed()
+        default:
+            break
+        }
+    }
+    
+    private func beginHoldSpeed() {
+        guard let player = player else { return }
+        originalRate = player.rate
+        let holdSpeed = UserDefaults.standard.float(forKey: "holdSpeedPlayer")
+        player.rate = holdSpeed
+    }
+    
+    private func endHoldSpeed() {
+        player?.rate = originalRate
     }
     
     private func setupActivityIndicator() {
@@ -120,14 +184,88 @@ class ExternalVideoPlayer3rb: UIViewController, GCKRemoteMediaClientListener {
                 return
             }
             
-            if let videoURL = self.extractVideoSourceURL(from: htmlString) {
-                print("Video source URL found: \(videoURL.absoluteString)")
-                self.handleVideoURL(url: videoURL)
+            if let qualityOptions = self.extractQualityOptions(from: htmlString) {
+                self.qualityOptions = qualityOptions
+                DispatchQueue.main.async {
+                    self.selectQuality()
+                }
             } else {
                 print("No video source found in iframe content")
                 self.retryExtraction()
             }
         }
+    }
+    
+    private func extractQualityOptions(from htmlString: String) -> [(label: String, url: URL)]? {
+        let pattern = #"var\s+videos\s*=\s*\[(.*?)\]"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]),
+              let match = regex.firstMatch(in: htmlString, range: NSRange(htmlString.startIndex..., in: htmlString)),
+              let videosArrayRange = Range(match.range(at: 1), in: htmlString) else {
+                  return nil
+              }
+        
+        let videosArrayString = String(htmlString[videosArrayRange])
+        let videoObjects = videosArrayString.components(separatedBy: "}, {")
+        
+        var options: [(label: String, url: URL)] = []
+        
+        for videoObject in videoObjects {
+            let labelPattern = #"label:\s*'(\d+p)'"#
+            let srcPattern = #"src:\s*'([^']*)'"#
+            
+            guard let labelRegex = try? NSRegularExpression(pattern: labelPattern, options: []),
+                  let srcRegex = try? NSRegularExpression(pattern: srcPattern, options: []),
+                  let labelMatch = labelRegex.firstMatch(in: videoObject, range: NSRange(videoObject.startIndex..., in: videoObject)),
+                  let srcMatch = srcRegex.firstMatch(in: videoObject, range: NSRange(videoObject.startIndex..., in: videoObject)),
+                  let labelRange = Range(labelMatch.range(at: 1), in: videoObject),
+                  let srcRange = Range(srcMatch.range(at: 1), in: videoObject) else {
+                      continue
+                  }
+            
+            let label = String(videoObject[labelRange])
+            let srcString = String(videoObject[srcRange])
+            
+            if let url = URL(string: srcString) {
+                options.append((label: label, url: url))
+            }
+        }
+        
+        return options.isEmpty ? nil : options.sorted { $0.label > $1.label }
+    }
+    
+    private func selectQuality() {
+        let preferredQuality = UserDefaults.standard.string(forKey: "preferredQuality") ?? "720p"
+        
+        if let matchingQuality = qualityOptions.first(where: { $0.label == preferredQuality }) {
+            handleVideoURL(url: matchingQuality.url)
+        } else if let nearestQuality = findNearestQuality(preferred: preferredQuality) {
+            handleVideoURL(url: nearestQuality.url)
+        } else {
+            showQualityPicker()
+        }
+    }
+    
+    private func findNearestQuality(preferred: String) -> (label: String, url: URL)? {
+        let preferredValue = Int(preferred.replacingOccurrences(of: "p", with: "")) ?? 0
+        let sortedQualities = qualityOptions.sorted { quality1, quality2 in
+            let diff1 = abs(Int(quality1.label.replacingOccurrences(of: "p", with: ""))! - preferredValue)
+            let diff2 = abs(Int(quality2.label.replacingOccurrences(of: "p", with: ""))! - preferredValue)
+            return diff1 < diff2
+        }
+        return sortedQualities.first
+    }
+    
+    private func showQualityPicker() {
+        let alertController = UIAlertController(title: "Select Prefered Quality", message: nil, preferredStyle: .actionSheet)
+        
+        for option in qualityOptions {
+            let action = UIAlertAction(title: option.label, style: .default) { [weak self] _ in
+                self?.handleVideoURL(url: option.url)
+            }
+            alertController.addAction(action)
+        }
+        
+        present(alertController, animated: true, completion: nil)
     }
     
     private func extractIframeSourceURL(from htmlString: String) -> URL? {
@@ -136,8 +274,8 @@ class ExternalVideoPlayer3rb: UIViewController, GCKRemoteMediaClientListener {
             guard let iframeElement = try doc.select("iframe").first(),
                   let sourceURLString = try iframeElement.attr("src").nilIfEmpty,
                   let sourceURL = URL(string: sourceURLString) else {
-                return nil
-            }
+                      return nil
+                  }
             return sourceURL
         } catch {
             print("Error parsing HTML with SwiftSoup: \(error)")
@@ -151,8 +289,8 @@ class ExternalVideoPlayer3rb: UIViewController, GCKRemoteMediaClientListener {
             guard let videoElement = try doc.select("video").first(),
                   let sourceURLString = try videoElement.attr("src").nilIfEmpty,
                   let sourceURL = URL(string: sourceURLString) else {
-                return nil
-            }
+                      return nil
+                  }
             return sourceURL
         } catch {
             print("Error parsing HTML with SwiftSoup: \(error)")
@@ -162,8 +300,8 @@ class ExternalVideoPlayer3rb: UIViewController, GCKRemoteMediaClientListener {
             guard let regex = try? NSRegularExpression(pattern: pattern, options: []),
                   let match = regex.firstMatch(in: htmlString, range: NSRange(htmlString.startIndex..., in: htmlString)),
                   let urlRange = Range(match.range(at: 1), in: htmlString) else {
-                return nil
-            }
+                      return nil
+                  }
             
             let urlString = String(htmlString[urlRange])
             return URL(string: urlString)
@@ -176,15 +314,30 @@ class ExternalVideoPlayer3rb: UIViewController, GCKRemoteMediaClientListener {
             
             if UserDefaults.standard.bool(forKey: "isToDownload") {
                 self.handleDownload(url: url)
-            } else if let selectedPlayer = UserDefaults.standard.string(forKey: "mediaPlayerSelected") {
-                self.animeDetailsViewController?.openInExternalPlayer(player: selectedPlayer, url: url)
+            }
+            else if GCKCastContext.sharedInstance().sessionManager.hasConnectedCastSession() {
+                self.castVideoToGoogleCast(videoURL: url)
                 self.dismiss(animated: true, completion: nil)
-            } else {
+            }
+            else if let selectedPlayer = UserDefaults.standard.string(forKey: "mediaPlayerSelected") {
+                if selectedPlayer == "VLC" || selectedPlayer == "Infuse" || selectedPlayer == "OutPlayer" {
+                    self.animeDetailsViewController?.openInExternalPlayer(player: selectedPlayer, url: url)
+                } else if selectedPlayer == "Experimental" {
+                    let videoTitle = self.animeDetailsViewController?.animeTitle ?? "Anime"
+                    let customPlayerVC = CustomPlayerView(videoTitle: videoTitle, videoURL: url)
+                    customPlayerVC.modalPresentationStyle = .fullScreen
+                    customPlayerVC.delegate = self
+                    self.present(customPlayerVC, animated: true, completion: nil)
+                } else {
+                    self.playOrCastVideo(url: url)
+                }
+            }
+            else {
                 self.playOrCastVideo(url: url)
             }
         }
     }
-
+    
     private func handleDownload(url: URL) {
         UserDefaults.standard.set(false, forKey: "isToDownload")
         
@@ -212,32 +365,27 @@ class ExternalVideoPlayer3rb: UIViewController, GCKRemoteMediaClientListener {
     }
     
     private func playOrCastVideo(url: URL) {
-        if GCKCastContext.sharedInstance().sessionManager.currentCastSession != nil {
-            self.castVideoToGoogleCast(videoURL: url)
-            self.dismiss(animated: true, completion: nil)
-        } else {
-            let player = AVPlayer(url: url)
-            let playerViewController = AVPlayerViewController()
-            playerViewController.player = player
-            
-            self.addChild(playerViewController)
-            self.view.addSubview(playerViewController.view)
-            playerViewController.view.frame = self.view.bounds
-            playerViewController.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-            playerViewController.didMove(toParent: self)
-            
-            let lastPlayedTime = UserDefaults.standard.double(forKey: "lastPlayedTime_\(self.fullURL)")
-            if lastPlayedTime > 0 {
-                player.seek(to: CMTime(seconds: lastPlayedTime, preferredTimescale: CMTimeScale(NSEC_PER_SEC)))
-            }
-            
-            player.play()
-            
-            self.player = player
-            self.playerViewController = playerViewController
-            
-            self.addPeriodicTimeObserver()
+        let player = AVPlayer(url: url)
+        let playerViewController = AVPlayerViewController()
+        playerViewController.player = player
+        self.addChild(playerViewController)
+        self.view.addSubview(playerViewController.view)
+        
+        playerViewController.view.frame = self.view.bounds
+        playerViewController.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        playerViewController.didMove(toParent: self)
+        
+        let lastPlayedTime = UserDefaults.standard.double(forKey: "lastPlayedTime_\(self.fullURL)")
+        
+        if lastPlayedTime > 0 {
+            player.seek(to: CMTime(seconds: lastPlayedTime, preferredTimescale: CMTimeScale(NSEC_PER_SEC)))
         }
+        
+        player.play()
+        
+        self.player = player
+        self.playerViewController = playerViewController
+        self.addPeriodicTimeObserver()
     }
     
     private func castVideoToGoogleCast(videoURL: URL) {
@@ -278,8 +426,68 @@ class ExternalVideoPlayer3rb: UIViewController, GCKRemoteMediaClientListener {
             let mediaInformation = builder.build()
             
             if let remoteMediaClient = GCKCastContext.sharedInstance().sessionManager.currentCastSession?.remoteMediaClient {
-                remoteMediaClient.loadMedia(mediaInformation)
+                remoteMediaClient.add(self)
+                
+                let lastPlayedTime = UserDefaults.standard.double(forKey: "lastPlayedTime_\(self.fullURL)")
+                if lastPlayedTime > 0 {
+                    let options = GCKMediaLoadOptions()
+                    options.playPosition = lastPlayedTime
+                    remoteMediaClient.loadMedia(mediaInformation, with: options)
+                } else {
+                    remoteMediaClient.loadMedia(mediaInformation)
+                }
             }
+        }
+    }
+    
+    func remoteMediaClient(_ client: GCKRemoteMediaClient, didUpdate mediaStatus: GCKMediaStatus?) {
+        guard let mediaStatus = mediaStatus else { return }
+        
+        let currentTime = mediaStatus.streamPosition
+        let duration = mediaStatus.mediaInformation?.streamDuration ?? 0
+        
+        UserDefaults.standard.set(currentTime, forKey: "lastPlayedTime_\(self.fullURL)")
+        UserDefaults.standard.set(duration, forKey: "totalTime_\(self.fullURL)")
+        
+        let progress = Float(currentTime / duration)
+        let remainingTime = duration - currentTime
+        self.cell.updatePlaybackProgress(progress: progress, remainingTime: remainingTime)
+        
+        let episodeNumber = Int(self.cell.episodeNumber) ?? 0
+        let selectedMediaSource = UserDefaults.standard.string(forKey: "selectedMediaSource") ?? "JKanime"
+        
+        let continueWatchingItem = ContinueWatchingItem(
+            animeTitle: self.animeDetailsViewController?.animeTitle ?? "Unknown Anime",
+            episodeTitle: "Ep. \(episodeNumber)",
+            episodeNumber: episodeNumber,
+            imageURL: self.animeDetailsViewController?.imageUrl ?? "",
+            fullURL: self.fullURL,
+            lastPlayedTime: currentTime,
+            totalTime: duration,
+            source: selectedMediaSource
+        )
+        ContinueWatchingManager.shared.saveItem(continueWatchingItem)
+        
+        if remainingTime < 120 && !(self.animeDetailsViewController?.hasSentUpdate ?? false) {
+            updateAniListProgress()
+        }
+    }
+    
+    private func updateAniListProgress() {
+        let cleanedTitle = self.animeDetailsViewController?.cleanTitle(self.animeDetailsViewController?.animeTitle ?? "Unknown Anime")
+        
+        self.animeDetailsViewController?.fetchAnimeID(title: cleanedTitle ?? "Title") { animeID in
+            let aniListMutation = AniListMutation()
+            aniListMutation.updateAnimeProgress(animeId: animeID, episodeNumber: Int(self.cell.episodeNumber) ?? 0) { result in
+                switch result {
+                case .success():
+                    print("Successfully updated anime progress.")
+                case .failure(let error):
+                    print("Failed to update anime progress: \(error.localizedDescription)")
+                }
+            }
+            
+            self.animeDetailsViewController?.hasSentUpdate = true
         }
     }
     
@@ -289,8 +497,8 @@ class ExternalVideoPlayer3rb: UIViewController, GCKRemoteMediaClientListener {
             guard let self = self,
                   let currentItem = self.player?.currentItem,
                   currentItem.duration.seconds.isFinite else {
-                return
-            }
+                      return
+                  }
             
             let currentTime = time.seconds
             let duration = currentItem.duration.seconds
@@ -337,6 +545,10 @@ class ExternalVideoPlayer3rb: UIViewController, GCKRemoteMediaClientListener {
         }
     }
     
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+    
     private func cleanup() {
         player?.pause()
         player = nil
@@ -371,6 +583,60 @@ class ExternalVideoPlayer3rb: UIViewController, GCKRemoteMediaClientListener {
             }
         }
     }
+    
+    func playNextEpisode() {
+        guard let animeDetailsViewController = self.animeDetailsViewController else {
+            print("Error: animeDetailsViewController is nil")
+            return
+        }
+        
+        if animeDetailsViewController.isReverseSorted {
+            animeDetailsViewController.currentEpisodeIndex -= 1
+            if animeDetailsViewController.currentEpisodeIndex >= 0 {
+                playEpisode(at: animeDetailsViewController.currentEpisodeIndex)
+            } else {
+                animeDetailsViewController.currentEpisodeIndex = 0
+            }
+        } else {
+            animeDetailsViewController.currentEpisodeIndex += 1
+            if animeDetailsViewController.currentEpisodeIndex < animeDetailsViewController.episodes.count {
+                playEpisode(at: animeDetailsViewController.currentEpisodeIndex)
+            } else {
+                animeDetailsViewController.currentEpisodeIndex = animeDetailsViewController.episodes.count - 1
+            }
+        }
+    }
+    
+    private func playEpisode(at index: Int) {
+        guard let animeDetailsViewController = self.animeDetailsViewController,
+              index >= 0 && index < animeDetailsViewController.episodes.count else {
+                  return
+              }
+        
+        let nextEpisode = animeDetailsViewController.episodes[index]
+        if let cell = animeDetailsViewController.tableView.cellForRow(at: IndexPath(row: index, section: 2)) as? EpisodeCell {
+            animeDetailsViewController.episodeSelected(episode: nextEpisode, cell: cell)
+        }
+    }
+    
+    @objc func playerItemDidReachEnd(notification: Notification) {
+        if UserDefaults.standard.bool(forKey: "AutoPlay") {
+            guard let animeDetailsViewController = self.animeDetailsViewController else { return }
+            let hasNextEpisode = animeDetailsViewController.isReverseSorted ?
+            (animeDetailsViewController.currentEpisodeIndex > 0) :
+            (animeDetailsViewController.currentEpisodeIndex < animeDetailsViewController.episodes.count - 1)
+            
+            if hasNextEpisode {
+                self.dismiss(animated: true) { [weak self] in
+                    self?.playNextEpisode()
+                }
+            } else {
+                self.dismiss(animated: true, completion: nil)
+            }
+        } else {
+            self.dismiss(animated: true, completion: nil)
+        }
+    }
 }
 
 extension ExternalVideoPlayer3rb: WKNavigationDelegate {
@@ -388,5 +654,11 @@ extension ExternalVideoPlayer3rb: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
         print("WebView provisional navigation failed: \(error.localizedDescription)")
         retryExtraction()
+    }
+}
+
+extension ExternalVideoPlayer3rb: CustomPlayerViewDelegate {
+    func customPlayerViewDidDismiss() {
+        self.dismiss(animated: true, completion: nil)
     }
 }

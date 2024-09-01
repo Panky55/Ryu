@@ -7,6 +7,7 @@
 
 import UIKit
 import Kingfisher
+import SafariServices
 
 class AnimeInformation: UIViewController, UITableViewDataSource {
     var animeID: Int = 0
@@ -18,7 +19,6 @@ class AnimeInformation: UIViewController, UITableViewDataSource {
     private let coverImageView = UIImageView()
     private let bannerImageView = UIImageView()
     private let titleLabel = UILabel()
-    private let genresView = GenresView()
     private let descriptionView = DescriptionView()
     private let infoView = AnimeInfoView()
     private let statsView = StatsView()
@@ -45,6 +45,9 @@ class AnimeInformation: UIViewController, UITableViewDataSource {
         
         setupUI()
         fetchAnimeData()
+        
+        let anilistButton = UIBarButtonItem(image: UIImage(systemName: "safari"), style: .plain, target: self, action: #selector(openAniListPage))
+        navigationItem.rightBarButtonItem = anilistButton
     }
     
     private func setupUI() {
@@ -54,6 +57,15 @@ class AnimeInformation: UIViewController, UITableViewDataSource {
         setupHeaderView()
         setupContentViews()
         setupLoadingIndicator()
+    }
+    
+    @objc private func openAniListPage() {
+        guard let url = URL(string: "https://anilist.co/anime/\(animeID)") else {
+            showError(message: "Unable to open AniList page.")
+            return
+        }
+        let safariViewController = SFSafariViewController(url: url)
+        present(safariViewController, animated: true, completion: nil)
     }
     
     private func setupScrollView() {
@@ -81,13 +93,11 @@ class AnimeInformation: UIViewController, UITableViewDataSource {
         contentView.addSubview(bannerImageView)
         contentView.addSubview(coverImageView)
         contentView.addSubview(titleLabel)
-        contentView.addSubview(genresView)
         contentView.addSubview(searchEpisodesButton)
         
         bannerImageView.translatesAutoresizingMaskIntoConstraints = false
         coverImageView.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        genresView.translatesAutoresizingMaskIntoConstraints = false
         searchEpisodesButton.translatesAutoresizingMaskIntoConstraints = false
         
         NSLayoutConstraint.activate([
@@ -189,18 +199,15 @@ class AnimeInformation: UIViewController, UITableViewDataSource {
 
         var bannerImageUrl: URL?
         
-        // Set the title
         if let titleDict = animeData["title"] as? [String: String] {
             titleLabel.text = titleDict["english"] ?? titleDict["romaji"]
         }
         
-        // Set the cover image
         if let coverImage = (animeData["coverImage"] as? [String: String])?["extraLarge"],
            let coverImageUrl = URL(string: coverImage) {
             coverImageView.kf.setImage(with: coverImageUrl)
         }
         
-        // Set the banner image, fallback to cover image if banner is unavailable
         if let bannerImage = animeData["bannerImage"] as? String {
             bannerImageUrl = URL(string: bannerImage)
         }
@@ -210,18 +217,11 @@ class AnimeInformation: UIViewController, UITableViewDataSource {
         if let bannerUrl = bannerImageUrl {
             bannerImageView.kf.setImage(with: bannerUrl)
         }
-
-        // Set genres
-        if let genres = animeData["genres"] as? [String] {
-            genresView.setGenres(genres)
-        }
         
-        // Set description
         descriptionView.configure(with: animeData["description"] as? String)
         infoView.configure(with: animeData)
         statsView.configure(with: animeData["stats"] as? [String: Any])
-
-        // Set characters view visibility
+        
         if let characters = animeData["characters"] as? [String: Any], !characters.isEmpty {
             charactersView.isHidden = false
             charactersView.configure(with: characters)
@@ -229,7 +229,6 @@ class AnimeInformation: UIViewController, UITableViewDataSource {
             charactersView.isHidden = true
         }
         
-        // Set relations view visibility
         if let relations = animeData["relations"] as? [String: Any],
            let edges = relations["edges"] as? [Any], !edges.isEmpty {
             relationsView.isHidden = false
@@ -254,67 +253,6 @@ extension AnimeInformation {
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "cellIdentifier", for: indexPath)
         return cell
-    }
-}
-
-
-class GenresView: UIView {
-    private let scrollView = UIScrollView()
-    private let stackView = UIStackView()
-    
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        setupUI()
-    }
-    
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-    
-    private func setupUI() {
-        addSubview(scrollView)
-        scrollView.addSubview(stackView)
-        
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
-        stackView.translatesAutoresizingMaskIntoConstraints = false
-        
-        scrollView.showsHorizontalScrollIndicator = false
-        
-        stackView.axis = .horizontal
-        stackView.spacing = 8
-        
-        NSLayoutConstraint.activate([
-            scrollView.topAnchor.constraint(equalTo: topAnchor),
-            scrollView.leadingAnchor.constraint(equalTo: leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: bottomAnchor),
-            
-            stackView.topAnchor.constraint(equalTo: scrollView.topAnchor),
-            stackView.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
-            stackView.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
-            stackView.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor),
-            stackView.heightAnchor.constraint(equalTo: scrollView.heightAnchor)
-        ])
-    }
-    
-    func setGenres(_ genres: [String]) {
-        stackView.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        
-        for genre in genres {
-            let genreLabel = PaddedLabel()
-            genreLabel.text = genre
-            genreLabel.font = UIFont.systemFont(ofSize: 12, weight: .medium)
-            genreLabel.textColor = .secondaryLabel
-            genreLabel.clipsToBounds = false
-            stackView.addArrangedSubview(genreLabel)
-        }
-    }
-}
-
-class PaddedLabel: UILabel {
-    override var intrinsicContentSize: CGSize {
-        let size = super.intrinsicContentSize
-        return CGSize(width: size.width + 16, height: size.height + 8)
     }
 }
 

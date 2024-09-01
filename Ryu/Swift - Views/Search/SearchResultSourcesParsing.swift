@@ -129,4 +129,46 @@ extension SearchResultsViewController {
             return []
         }
     }
+    
+    func parseHiAnime(_ jsonString: String) -> [(title: String, imageUrl: String, href: String)] {
+        do {
+            
+            guard let jsonData = jsonString.data(using: .utf8) else {
+                print("Error converting JSON string to Data")
+                return []
+            }
+            
+            let json = try JSONSerialization.jsonObject(with: jsonData, options: []) as? [String: Any]
+            
+            guard let animes = json?["animes"] as? [[String: Any]] else {
+                print("Error extracting 'animes' array from JSON")
+                return []
+            }
+            
+            return animes.map { anime -> (title: String, imageUrl: String, href: String) in
+                let title = anime["name"] as? String ?? "Unknown Title"
+                let imageUrl = anime["poster"] as? String ?? ""
+                let href = anime["id"] as? String ?? ""
+                return (title: title, imageUrl: imageUrl, href: href)
+            }
+        } catch {
+            print("Error parsing JSON: \(error.localizedDescription)")
+            return []
+        }
+    }
+    
+    func parseZoroTv(_ document: Document) -> [(title: String, imageUrl: String, href: String)] {
+        do {
+            let items = try document.select("div.listupd article")
+            return try items.map { item -> (title: String, imageUrl: String, href: String) in
+                let title = try item.select("h2").text()
+                let imageUrl = try item.select("img").attr("src")
+                let href = try item.select("a").first()?.attr("href") ?? ""
+                return (title: title, imageUrl: imageUrl, href: href)
+            }
+        } catch {
+            print("Error parsing Anime3rb: \(error.localizedDescription)")
+            return []
+        }
+    }
 }

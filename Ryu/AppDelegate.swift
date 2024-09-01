@@ -34,6 +34,34 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             UserDefaults.standard.set(10, forKey: "maxRetries")
         }
         
+        if UserDefaults.standard.object(forKey: "holdSpeedPlayer") == nil {
+            UserDefaults.standard.set(2, forKey: "holdSpeedPlayer")
+        }
+        
+        if UserDefaults.standard.object(forKey: "preferredQuality") == nil {
+            UserDefaults.standard.set("1080p", forKey: "preferredQuality")
+        }
+        
+        if UserDefaults.standard.object(forKey: "hideWebPlayer") == nil {
+            UserDefaults.standard.set(true, forKey: "hideWebPlayer")
+        }
+        
+        if UserDefaults.standard.object(forKey: "subtitleHiPrefe") == nil {
+            UserDefaults.standard.set("English", forKey: "subtitleHiPrefe")
+        }
+        
+        if UserDefaults.standard.object(forKey: "serverHiPrefe") == nil {
+            UserDefaults.standard.set("hd-1", forKey: "serverHiPrefe")
+        }
+        
+        if UserDefaults.standard.object(forKey: "audioHiPrefe") == nil {
+            UserDefaults.standard.set("dub", forKey: "audioHiPrefe")
+        }
+        
+        if (UserDefaults.standard.object(forKey: "accessToken") != nil) {
+            UserDefaults.standard.removeObject(forKey: "accessToken")
+        }
+        
         UserDefaults.standard.register(defaults: ["fullTitleCast": true])
         UserDefaults.standard.register(defaults: ["animeImageCast": true])
     }

@@ -11,31 +11,33 @@ import WebKit
 import SwiftSoup
 import GoogleCast
 import Kingfisher
+import SafariServices
 
 class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GCKRemoteMediaClientListener, AVPlayerViewControllerDelegate {
     var animeTitle: String?
     var imageUrl: String?
-    private var href: String?
+    var href: String?
     
-    private var episodes: [Episode] = []
-    private var synopsis: String = ""
-    private var aliases: String = ""
-    private var airdate: String = ""
-    private var stars: String = ""
+    var episodes: [Episode] = []
+    var synopsis: String = ""
+    var aliases: String = ""
+    var airdate: String = ""
+    var stars: String = ""
     
-    private var player: AVPlayer?
-    private var playerViewController: AVPlayerViewController?
+    var player: AVPlayer?
+    var playerViewController: AVPlayerViewController?
     
     var currentEpisodeIndex: Int = 0
     var timeObserverToken: Any?
     
-    private var isFavorite: Bool = false
-    private var isSynopsisExpanded = false
-    private var isReverseSorted = false
+    var isFavorite: Bool = false
+    var isSynopsisExpanded = false
+    var isReverseSorted = false
     
     var availableQualities: [String] = []
+    var qualityOptions: [(name: String, fileName: String)] = []
     var hasSentUpdate = false
-
+    
     func configure(title: String, imageUrl: String, href: String) {
         self.animeTitle = title
         self.imageUrl = imageUrl
@@ -64,8 +66,8 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
         }
         
         if let firstEpisodeHref = episodes.first?.href {
-             currentEpisodeIndex = episodes.firstIndex(where: { $0.href == firstEpisodeHref }) ?? 0
-         }
+            currentEpisodeIndex = episodes.firstIndex(where: { $0.href == firstEpisodeHref }) ?? 0
+        }
     }
     
     private func setupCastButton() {
@@ -99,8 +101,8 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
         guard let title = animeTitle,
               let imageURL = URL(string: imageUrl ?? ""),
               let contentURL = URL(string: href ?? "") else {
-            return nil
-        }
+                  return nil
+              }
         let selectedMediaSource = UserDefaults.standard.string(forKey: "selectedMediaSource") ?? "AnimeWorld"
         
         return FavoriteItem(title: title, imageURL: imageURL, contentURL: contentURL, source: selectedMediaSource)
@@ -118,17 +120,17 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
         tableView.register(SynopsisCell.self, forCellReuseIdentifier: "SynopsisCell")
         tableView.register(EpisodeCell.self, forCellReuseIdentifier: "EpisodeCell")
     }
-
+    
     private func setupNotifications() {
         NotificationCenter.default.addObserver(self, selector: #selector(handleInterruption), name: AVAudioSession.interruptionNotification, object: AVAudioSession.sharedInstance())
     }
-
+    
     @objc private func handleInterruption(notification: Notification) {
         guard let userInfo = notification.userInfo,
               let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
               let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
-            return
-        }
+                  return
+              }
         
         switch type {
         case .began:
@@ -144,7 +146,7 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
             break
         }
     }
-
+    
     private func updateUI() {
         if let href = href {
             AnimeDetailService.fetchAnimeDetails(from: href) { [weak self] (result) in
@@ -244,7 +246,7 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
         fetchIDAction.setValue(UIImage(systemName: "info.circle"), forKey: "image")
         alertController.addAction(fetchIDAction)
         
-        let openOnWebAction = UIAlertAction(title: "Open on Web", style: .default) { [weak self] _ in
+        let openOnWebAction = UIAlertAction(title: "Open in Web", style: .default) { [weak self] _ in
             self?.openAnimeOnWeb()
         }
         openOnWebAction.setValue(UIImage(systemName: "safari"), forKey: "image")
@@ -279,7 +281,7 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
         cleanedTitle = cleanedTitle.replacingOccurrences(of: "\"", with: "")
         return cleanedTitle.trimmingCharacters(in: .whitespacesAndNewlines)
     }
-
+    
     private func fetchAndNavigateToAnime(title: String) {
         AnimeService.fetchAnimeID(byTitle: title) { [weak self] result in
             switch result {
@@ -316,7 +318,7 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
         case "GoGoAnime":
             baseUrl = "https://anitaku.pe"
         case "AnimeHeaven":
-            baseUrl = "https://animeheaven.me"
+            baseUrl = "https://animeheaven.me/"
         default:
             baseUrl = ""
         }
@@ -336,12 +338,12 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
             }
         }
     }
-
+    
     private func refreshAnimeDetails() {
         let loadingIndicator = UIActivityIndicatorView(style: .medium)
         loadingIndicator.startAnimating()
         navigationItem.rightBarButtonItem = UIBarButtonItem(customView: loadingIndicator)
-            
+        
         if let href = href {
             AnimeDetailService.fetchAnimeDetails(from: href) { [weak self] result in
                 DispatchQueue.main.async {
@@ -361,7 +363,7 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
             showAlert(withTitle: "Error", message: "Unable to refresh. No valid URL found.")
         }
     }
-
+    
     private func updateAnimeDetails(with details: AnimeDetail) {
         aliases = details.aliases
         synopsis = details.synopsis
@@ -388,7 +390,7 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
             }
         }
     }
-
+    
     func episodeSelected(episode: Episode, cell: EpisodeCell) {
         let selectedSource = UserDefaults.standard.string(forKey: "selectedMediaSource") ?? "AnimeWorld"
         currentEpisodeIndex = episodes.firstIndex(where: { $0.href == episode.href }) ?? 0
@@ -430,30 +432,30 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
     }
     
     private func checkUserDefault(url: String, cell: EpisodeCell, fullURL: String) {
-        if UserDefaults.standard.bool(forKey: "browserPlayer") {
-            openWebView(fullURL: url)
+        if UserDefaults.standard.bool(forKey: "isToDownload") {
+            playEpisode(url: url, cell: cell, fullURL: fullURL)
+        } else if UserDefaults.standard.bool(forKey: "browserPlayer") {
+            openInWeb(fullURL: url)
         } else {
             playEpisode(url: url, cell: cell, fullURL: fullURL)
         }
     }
     
-    private func openWebView(fullURL: String) {
-        let webView = WKWebView(frame: view.bounds)
-        webView.navigationDelegate = self
-        view.addSubview(webView)
-        
-        if let url = URL(string: fullURL) {
-            let request = URLRequest(url: url)
-            webView.load(request)
+    @objc private func openInWeb(fullURL: String) {
+        guard let url = URL(string: fullURL) else {
+            showAlert(title: "Error", message: "Unable to open the webpage")
+            return
         }
+        let safariViewController = SFSafariViewController(url: url)
+        present(safariViewController, animated: true, completion: nil)
     }
     
-    @objc func startStreamingButtonTapped(withURL url: String, playerType: String, cell: EpisodeCell, fullURL: String) {
+    @objc func startStreamingButtonTapped(withURL url: String, captionURL: String, playerType: String, cell: EpisodeCell, fullURL: String) {
         deleteWebKitFolder()
-        presentStreamingView(withURL: url, playerType: playerType, cell: cell, fullURL: fullURL)
+        presentStreamingView(withURL: url, captionURL: captionURL, playerType: playerType, cell: cell, fullURL: fullURL)
     }
-
-    func presentStreamingView(withURL url: String, playerType: String, cell: EpisodeCell, fullURL: String) {
+    
+    func presentStreamingView(withURL url: String, captionURL: String, playerType: String, cell: EpisodeCell, fullURL: String) {
         DispatchQueue.main.async {
             var streamingVC: UIViewController
             switch playerType {
@@ -465,6 +467,8 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
                 streamingVC = ExternalVideoPlayerKura(streamURL: url, cell: cell, fullURL: fullURL, animeDetailsViewController: self)
             case VideoPlayerType.playerJK:
                 streamingVC = ExternalVideoPlayerJK(streamURL: url, cell: cell, fullURL: fullURL, animeDetailsViewController: self)
+            case VideoPlayerType.playerWeb:
+                streamingVC = HiAnimeWebPlayer(streamURL: url, captionURL: captionURL, cell: cell, fullURL: fullURL, animeDetailsViewController: self)
             default:
                 return
             }
@@ -490,7 +494,7 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
             print("Could not find the Library directory.")
         }
     }
-
+    
     func playEpisode(url: String, cell: EpisodeCell, fullURL: String) {
         hasSentUpdate = false
         
@@ -499,22 +503,162 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
             return
         }
         
-        if url.contains(".mp4") || url.contains(".m3u8") || url.contains("animeheaven.me/video.mp4") {
+        let selectedMediaSource = UserDefaults.standard.string(forKey: "selectedMediaSource") ?? ""
+        
+        if selectedMediaSource == "HiAnime" {
+            handleHiAnimeSource(url: url, cell: cell, fullURL: fullURL)
+        } else if url.contains(".mp4") || url.contains(".m3u8") || url.contains("animeheaven.me/video.mp4") {
             DispatchQueue.main.async {
                 self.playVideo(sourceURL: videoURL, cell: cell, fullURL: fullURL)
             }
         } else {
-            URLSession.shared.dataTask(with: videoURL) { [weak self] (data, response, error) in
-                guard let self = self else { return }
-                
-                if let error = error {
-                    print("Error fetching video data: \(error.localizedDescription)")
+            handleSources(url: url, cell: cell, fullURL: fullURL)
+        }
+    }
+    
+    private func handleHiAnimeSource(url: String, cell: EpisodeCell, fullURL: String) {
+        guard let episodeId = extractEpisodeId(from: url) else {
+            print("Could not extract episodeId from URL")
+            DispatchQueue.main.async {
+                self.showAlert(title: "Error", message: "Could not extract episodeId from URL")
+            }
+            return
+        }
+        
+        fetchEpisodeOptions(episodeId: episodeId) { [weak self] options in
+            guard let self = self else { return }
+            
+            if options.isEmpty {
+                print("No options available for this episode")
+                DispatchQueue.main.async {
+                    self.showAlert(title: "Error", message: "No options available for this episode")
+                }
+                return
+            }
+            
+            let preferredAudio = UserDefaults.standard.string(forKey: "audioHiPrefe") ?? ""
+            let preferredServer = UserDefaults.standard.string(forKey: "serverHiPrefe") ?? ""
+            
+            self.selectAudioCategory(options: options, preferredAudio: preferredAudio) { category in
+                guard let servers = options[category], !servers.isEmpty else {
+                    print("No servers available for selected category")
+                    DispatchQueue.main.async {
+                        self.showAlert(title: "Error", message: "No server available")
+                    }
                     return
                 }
                 
-                guard let data = data,
-                      let htmlString = String(data: data, encoding: .utf8) else {
-                    print("Error parsing video data")
+                self.selectServer(servers: servers, preferredServer: preferredServer) { server in
+                    let finalURL = "https://aniwatch.cranci.xyz/anime/episode-srcs?id=\(episodeId)&category=\(category)&server=\(server)"
+                    print(finalURL)
+                    
+                    self.fetchHiAnimeData(from: finalURL) { sourceURL, captionURLs in
+                        DispatchQueue.main.async {
+                            guard let sourceURL = sourceURL else {
+                                print("Error extracting source URL")
+                                self.showAlert(title: "Error", message: "Error extracting source URL")
+                                return
+                            }
+                            
+                            self.selectSubtitles(captionURLs: captionURLs) { selectedCaptionURL in
+                                guard let selectedCaptionURL = selectedCaptionURL else {
+                                    print("No caption URL selected")
+                                    return
+                                }
+                                self.openHiAnimeExperimental(url: sourceURL, subURL: selectedCaptionURL)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    private func selectAudioCategory(options: [String: [[String: Any]]], preferredAudio: String, completion: @escaping (String) -> Void) {
+        if let audioOptions = options[preferredAudio], !audioOptions.isEmpty {
+            completion(preferredAudio)
+        } else {
+            DispatchQueue.main.async {
+                self.presentDubSubSelection(options: options, completion: completion)
+            }
+        }
+    }
+    
+    private func selectServer(servers: [[String: Any]], preferredServer: String, completion: @escaping (String) -> Void) {
+        if let server = servers.first(where: { ($0["serverName"] as? String) == preferredServer }) {
+            completion(server["serverName"] as? String ?? "")
+        } else {
+            DispatchQueue.main.async {
+                self.presentServerSelection(servers: servers, completion: completion)
+            }
+        }
+    }
+    
+    private func selectSubtitles(captionURLs: [String: URL]?, completion: @escaping (URL?) -> Void) {
+        guard let captionURLs = captionURLs, !captionURLs.isEmpty else {
+            completion(nil)
+            return
+        }
+        
+        let preferredSubtitles = UserDefaults.standard.string(forKey: "subtitleHiPrefe") ?? "English"
+        
+        if let preferredURL = captionURLs[preferredSubtitles] {
+            completion(preferredURL)
+        } else {
+            DispatchQueue.main.async {
+                self.presentSubtitleSelection(captionURLs: captionURLs, completion: completion)
+            }
+        }
+    }
+    
+    private func presentSubtitleSelection(captionURLs: [String: URL], completion: @escaping (URL?) -> Void) {
+        let alert = UIAlertController(title: "Select Subtitle Language", message: nil, preferredStyle: .actionSheet)
+        
+        for (label, url) in captionURLs {
+            alert.addAction(UIAlertAction(title: label, style: .default) { _ in
+                completion(url)
+            })
+        }
+        
+        alert.addAction(UIAlertAction(title: "No Subtitles", style: .default) { _ in
+            completion(nil)
+        })
+        
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
+        
+        if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let topController = scene.windows.first?.rootViewController {
+            if UIDevice.current.userInterfaceIdiom == .pad {
+                alert.modalPresentationStyle = .popover
+                if let popover = alert.popoverPresentationController {
+                    popover.sourceView = topController.view
+                    popover.sourceRect = CGRect(x: topController.view.bounds.midX, y: topController.view.bounds.midY, width: 0, height: 0)
+                    popover.permittedArrowDirections = []
+                }
+            }
+            topController.present(alert, animated: true, completion: nil)
+        }
+    }
+    
+    private func handleSources(url: String, cell: EpisodeCell, fullURL: String) {
+        guard let requestURL = URL(string: url) else {
+            DispatchQueue.main.async {
+                self.showAlert(title: "Error", message: "Invalid URL: \(url)")
+            }
+            return
+        }
+        
+        URLSession.shared.dataTask(with: requestURL) { [weak self] (data, response, error) in
+            guard let self = self else { return }
+            
+            DispatchQueue.main.async {
+                if let error = error {
+                    self.showAlert(title: "Error", message: "Error fetching video data: \(error.localizedDescription)")
+                    return
+                }
+                
+                guard let data = data, let htmlString = String(data: data, encoding: .utf8) else {
+                    self.showAlert(title: "Error", message: "Error parsing video data")
                     return
                 }
                 
@@ -524,6 +668,17 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
                 switch selectedMediaSource {
                 case "GoGoAnime":
                     srcURL = self.extractIframeSourceURL(from: htmlString)
+                case "ZoroTv":
+                    self.extractIframeAndGetM3U8URL(from: htmlString) { [weak self] result in
+                        guard let self = self else { return }
+                        guard let m3u8URL = result else {
+                            print("Error extracting m3u8 URL")
+                            self.showAlert(title: "Error", message: "Error extracting the m3u8 URL")
+                            return
+                        }
+                        self.playVideo(sourceURL: m3u8URL, cell: cell, fullURL: fullURL)
+                    }
+                    return
                 case "AnimeFire":
                     srcURL = self.extractDataVideoSrcURL(from: htmlString)
                 case "AnimeWorld", "AnimeHeaven":
@@ -536,31 +691,383 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
                 
                 guard let finalSrcURL = srcURL else {
                     print("Error extracting source URL")
+                    self.showAlert(title: "Error", message: "Error extracting source URL")
                     return
                 }
                 
                 DispatchQueue.main.async {
                     switch selectedMediaSource {
                     case "GoGoAnime":
-                        self.startStreamingButtonTapped(withURL: finalSrcURL.absoluteString, playerType: VideoPlayerType.standard, cell: cell, fullURL: fullURL)
+                        self.startStreamingButtonTapped(withURL: finalSrcURL.absoluteString, captionURL: "", playerType: VideoPlayerType.standard, cell: cell, fullURL: fullURL)
                     case "AnimeFire":
                         self.fetchVideoDataAndChooseQuality(from: finalSrcURL.absoluteString) { selectedURL in
                             guard let selectedURL = selectedURL else { return }
                             self.playVideo(sourceURL: selectedURL, cell: cell, fullURL: fullURL)
-                            print("\(selectedURL)")
                         }
                     case "Anime3rb":
-                        self.startStreamingButtonTapped(withURL: finalSrcURL.absoluteString, playerType: VideoPlayerType.player3rb, cell: cell, fullURL: fullURL)
+                        self.startStreamingButtonTapped(withURL: finalSrcURL.absoluteString, captionURL: "", playerType: VideoPlayerType.player3rb, cell: cell, fullURL: fullURL)
                     case "Kuramanime":
-                        self.startStreamingButtonTapped(withURL: finalSrcURL.absoluteString, playerType: VideoPlayerType.playerKura, cell: cell, fullURL: fullURL)
+                        self.startStreamingButtonTapped(withURL: finalSrcURL.absoluteString, captionURL: "", playerType: VideoPlayerType.playerKura, cell: cell, fullURL: fullURL)
                     case "JKanime":
-                        self.startStreamingButtonTapped(withURL: finalSrcURL.absoluteString, playerType: VideoPlayerType.playerJK, cell: cell, fullURL: fullURL)
+                        self.startStreamingButtonTapped(withURL: finalSrcURL.absoluteString, captionURL: "", playerType: VideoPlayerType.playerJK, cell: cell, fullURL: fullURL)
                     default:
                         self.playVideo(sourceURL: finalSrcURL, cell: cell, fullURL: fullURL)
                     }
                 }
-            }.resume()
+            }
+        }.resume()
+    }
+    
+    func extractIframeAndGetM3U8URL(from htmlString: String, completion: @escaping (URL?) -> Void) {
+        do {
+            let doc = try SwiftSoup.parse(htmlString)
+            
+            guard let iframeElement = try doc.select("iframe").first() else {
+                print("No iframe element found in the HTML.")
+                completion(nil)
+                return
+            }
+            
+            guard let sourceURLString = try iframeElement.attr("src").nilIfEmpty else {
+                print("Iframe src attribute not found.")
+                completion(nil)
+                return
+            }
+            
+            var sourceURL = URL(string: sourceURLString)
+            if sourceURL?.scheme != "https" {
+                sourceURL = URL(string: "https:\(sourceURLString)")
+            }
+            
+            guard let sourceURL = sourceURL else {
+                completion(nil)
+                return
+            }
+            
+            let task = URLSession.shared.dataTask(with: sourceURL) { [weak self] (data, response, error) in
+                guard let self = self else { return }
+                
+                if let httpResponse = response as? HTTPURLResponse, (200..<300).contains(httpResponse.statusCode) {
+                    if let m3u8URLString = String(data: data ?? Data(), encoding: .utf8)?
+                        .components(separatedBy: "\"")
+                        .first(where: { $0.contains(".m3u8") }) {
+                        if let m3u8URL = URL(string: m3u8URLString.replacingOccurrences(of: "\\", with: "")) {
+                            let selectedPlayer = UserDefaults.standard.string(forKey: "mediaPlayerSelected") ?? "Default"
+                            
+                            if selectedPlayer == "Experimental" {
+                                DispatchQueue.main.async {
+                                    self.openVideo(url: m3u8URL)
+                                }
+                            } else {
+                                self.loadQualityOptions(from: m3u8URL) { success, error in
+                                    if success {
+                                        DispatchQueue.main.async {
+                                            self.showQualitySelection { selectedURL in
+                                                completion(selectedURL)
+                                            }
+                                        }
+                                    } else {
+                                        print("Failed to load quality options: \(error?.localizedDescription ?? "Unknown error")")
+                                        DispatchQueue.main.async {
+                                            self.showAlert(title: "Error", message: "Failed to load quality options")
+                                        }
+                                        completion(nil)
+                                    }
+                                }
+                            }
+                        } else {
+                            completion(nil)
+                        }
+                    } else {
+                        completion(nil)
+                    }
+                } else {
+                    completion(nil)
+                }
+            }
+            task.resume()
+        } catch {
+            completion(nil)
         }
+    }
+    
+    func openVideo(url: URL) {
+        let videoTitle = animeTitle
+        let viewController = CustomPlayerView(videoTitle: videoTitle ?? "", videoURL: url)
+        viewController.modalPresentationStyle = .fullScreen
+        self.present(viewController, animated: true, completion: nil)
+    }
+    
+    func loadQualityOptions(from url: URL, completion: @escaping (Bool, Error?) -> Void) {
+        let task = URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
+            guard let self = self else { return }
+            
+            if let error = error {
+                print("Error downloading m3u8 file: \(error)")
+                DispatchQueue.main.async {
+                    completion(false, error)
+                }
+                return
+            }
+            
+            guard let data = data,
+                  let m3u8Content = String(data: data, encoding: .utf8) else {
+                      print("Failed to decode m3u8 file content")
+                      let error = NSError(domain: "M3U8ErrorDomain", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to parse m3u8 file"])
+                      DispatchQueue.main.async {
+                          completion(false, error)
+                      }
+                      return
+                  }
+            
+            print("m3u8 file content:\n\(m3u8Content)")
+            
+            let lines = m3u8Content.components(separatedBy: .newlines)
+            var currentName: String?
+            var newQualityOptions: [(name: String, fileName: String)] = []
+            
+            for line in lines {
+                if line.hasPrefix("#EXT-X-STREAM-INF") {
+                    if let nameRange = line.range(of: "NAME=\"") {
+                        let nameStartIndex = line.index(nameRange.upperBound, offsetBy: 0)
+                        if let nameEndIndex = line[nameStartIndex...].firstIndex(of: "\"") {
+                            currentName = String(line[nameStartIndex..<nameEndIndex])
+                        }
+                    }
+                } else if line.hasSuffix(".m3u8"), let name = currentName {
+                    let fullURL = URL(string: line, relativeTo: url)?.absoluteString ?? line
+                    newQualityOptions.append((name: name, fileName: fullURL))
+                    currentName = nil
+                }
+            }
+            
+            self.qualityOptions = newQualityOptions
+            print("Parsed quality options: \(self.qualityOptions)")
+            
+            DispatchQueue.main.async {
+                completion(true, nil)
+            }
+        }
+        task.resume()
+    }
+    
+    func showQualitySelection(completion: @escaping (URL?) -> Void) {
+        let preferredQuality = UserDefaults.standard.string(forKey: "preferredQuality")
+        
+        if let preferredQuality = preferredQuality {
+            if let exactMatch = qualityOptions.first(where: { $0.name == preferredQuality }) {
+                handleQualitySelection(option: exactMatch, completion: completion)
+                return
+            }
+            let closestMatch = findClosestQuality(to: preferredQuality)
+            if let closestMatch = closestMatch {
+                handleQualitySelection(option: closestMatch, completion: completion)
+                return
+            }
+        }
+        
+        presentQualityPicker(completion: completion)
+    }
+    
+    private func findClosestQuality(to preferredQuality: String) -> (name: String, fileName: String)? {
+        let preferredValue = extractQualityValue(from: preferredQuality)
+        var closestOption: (name: String, fileName: String)?
+        var smallestDifference = Int.max
+        
+        for option in qualityOptions {
+            let optionValue = extractQualityValue(from: option.name)
+            let difference = abs(preferredValue - optionValue)
+            if difference < smallestDifference {
+                smallestDifference = difference
+                closestOption = option
+            }
+        }
+        
+        return closestOption
+    }
+    
+    private func extractQualityValue(from qualityString: String) -> Int {
+        return Int(qualityString.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()) ?? 0
+    }
+    
+    private func handleQualitySelection(option: (name: String, fileName: String), completion: @escaping (URL?) -> Void) {
+        if let url = URL(string: option.fileName) {
+            completion(url)
+        } else {
+            completion(nil)
+        }
+    }
+    
+    private func presentQualityPicker(completion: @escaping (URL?) -> Void) {
+        let alert = UIAlertController(title: "Select Quality", message: nil, preferredStyle: .actionSheet)
+        
+        for option in qualityOptions {
+            alert.addAction(UIAlertAction(title: option.name, style: .default, handler: { _ in
+                self.handleQualitySelection(option: option, completion: completion)
+            }))
+        }
+        
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            if let popoverController = alert.popoverPresentationController {
+                popoverController.sourceView = self.view
+                popoverController.sourceRect = CGRect(x: self.view.bounds.midX, y: self.view.bounds.midY, width: 0, height: 0)
+                popoverController.permittedArrowDirections = []
+            }
+        }
+        
+        self.present(alert, animated: true, completion: nil)
+    }
+    
+    func extractEpisodeId(from url: String) -> String? {
+        let components = url.components(separatedBy: "?")
+        guard components.count >= 2 else { return nil }
+        let episodeId = components[1].components(separatedBy: "&").first
+        guard let ep = components.last else { return nil }
+        
+        return episodeId.flatMap { "\($0)?\(ep)" }
+    }
+    
+    func fetchEpisodeOptions(episodeId: String, completion: @escaping ([String: [[String: Any]]]) -> Void) {
+        let url = URL(string: "https://aniwatch.cranci.xyz/anime/servers?episodeId=\(episodeId)")!
+        print(url)
+        
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            guard let data = data else {
+                print("Error fetching episode options: \(error?.localizedDescription ?? "Unknown error")")
+                completion([:])
+                return
+            }
+            
+            do {
+                if let json = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
+                   let sub = json["sub"] as? [[String: Any]],
+                   let dub = json["dub"] as? [[String: Any]] {
+                    completion(["sub": sub, "dub": dub])
+                } else {
+                    completion([:])
+                }
+            } catch {
+                print("Error parsing episode options: \(error.localizedDescription)")
+                completion([:])
+            }
+        }.resume()
+    }
+    
+    func presentDubSubSelection(options: [String: [[String: Any]]], completion: @escaping (String) -> Void) {
+        DispatchQueue.main.async {
+            let subOptions = options["sub"]
+            let dubOptions = options["dub"]
+            
+            if let subOptions = subOptions, !subOptions.isEmpty, let dubOptions = dubOptions, !dubOptions.isEmpty {
+                let alert = UIAlertController(title: "Select Audio", message: nil, preferredStyle: .actionSheet)
+                
+                alert.addAction(UIAlertAction(title: "Subtitled", style: .default) { _ in
+                    completion("sub")
+                })
+                
+                alert.addAction(UIAlertAction(title: "Dubbed", style: .default) { _ in
+                    completion("dub")
+                })
+                
+                if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                   let topController = scene.windows.first?.rootViewController {
+                    if UIDevice.current.userInterfaceIdiom == .pad {
+                        alert.modalPresentationStyle = .popover
+                        if let popover = alert.popoverPresentationController {
+                            popover.sourceView = topController.view
+                            popover.sourceRect = CGRect(x: topController.view.bounds.midX, y: topController.view.bounds.midY, width: 0, height: 0)
+                            popover.permittedArrowDirections = []
+                        }
+                    }
+                    topController.present(alert, animated: true, completion: nil)
+                } else {
+                    print("Could not find top view controller to present alert")
+                }
+            } else if let subOptions = subOptions, !subOptions.isEmpty {
+                completion("sub")
+            } else if let dubOptions = dubOptions, !dubOptions.isEmpty {
+                completion("dub")
+            } else {
+                print("No audio options available")
+                self.showAlert(title: "Error", message: "No audio options available")
+            }
+        }
+    }
+    
+    func presentServerSelection(servers: [[String: Any]], completion: @escaping (String) -> Void) {
+        let alert = UIAlertController(title: "Select Server", message: nil, preferredStyle: .actionSheet)
+        
+        for server in servers {
+            if let serverName = server["serverName"] as? String,
+               serverName != "streamtape" && serverName != "streamsb" {
+                alert.addAction(UIAlertAction(title: serverName, style: .default) { _ in
+                    completion(serverName)
+                })
+            }
+        }
+        
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
+        
+        if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let topController = scene.windows.first?.rootViewController {
+            if UIDevice.current.userInterfaceIdiom == .pad {
+                alert.modalPresentationStyle = .popover
+                if let popover = alert.popoverPresentationController {
+                    popover.sourceView = topController.view
+                    popover.sourceRect = CGRect(x: topController.view.bounds.midX, y: topController.view.bounds.midY, width: 0, height: 0)
+                    popover.permittedArrowDirections = []
+                }
+            }
+            topController.present(alert, animated: true, completion: nil)
+        }
+    }
+    
+    private func fetchHiAnimeData(from fullURL: String, completion: @escaping (URL?, [String: URL]?) -> Void) {
+        guard let url = URL(string: fullURL) else {
+            print("Invalid URL for HiAnime: \(fullURL)")
+            completion(nil, nil)
+            return
+        }
+        
+        URLSession.shared.dataTask(with: url) { (data, response, error) in
+            if let error = error {
+                print("Error fetching HiAnime data: \(error.localizedDescription)")
+                completion(nil, nil)
+                return
+            }
+            
+            guard let data = data else {
+                print("Error: No data received from HiAnime")
+                completion(nil, nil)
+                return
+            }
+            
+            do {
+                if let json = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
+                    var captionURLs: [String: URL] = [:]
+                    
+                    if let tracks = json["tracks"] as? [[String: Any]] {
+                        for track in tracks {
+                            if let file = track["file"] as? String, let label = track["label"] as? String, track["kind"] as? String == "captions" {
+                                captionURLs[label] = URL(string: file)
+                            }
+                        }
+                    }
+                    
+                    var sourceURL: URL?
+                    if let sources = json["sources"] as? [[String: Any]] {
+                        if let source = sources.first, let urlString = source["url"] as? String {
+                            sourceURL = URL(string: urlString)
+                        }
+                    }
+                    
+                    completion(sourceURL, captionURLs)
+                }
+            } catch {
+                print("Error parsing HiAnime JSON: \(error.localizedDescription)")
+                completion(nil, nil)
+            }
+        }.resume()
     }
     
     private func fetchHTMLContent(from url: String, completion: @escaping (Result<String, Error>) -> Void) {
@@ -663,8 +1170,8 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
                   let sourceElement = try videoElement.select("source").first(),
                   let sourceURLString = try sourceElement.attr("src").nilIfEmpty,
                   let sourceURL = URL(string: sourceURLString) else {
-                return nil
-            }
+                      return nil
+                  }
             return sourceURL
         } catch {
             print("Error parsing HTML with SwiftSoup: \(error)")
@@ -685,8 +1192,8 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
         guard let regex = try? NSRegularExpression(pattern: pattern, options: []),
               let match = regex.firstMatch(in: htmlString, range: NSRange(htmlString.startIndex..., in: htmlString)),
               let urlRange = Range(match.range(at: 1), in: htmlString) else {
-            return nil
-        }
+                  return nil
+              }
         
         let urlString = String(htmlString[urlRange])
         return URL(string: urlString)
@@ -698,8 +1205,8 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
             guard let iframeElement = try doc.select("iframe").first(),
                   let sourceURLString = try iframeElement.attr("src").nilIfEmpty,
                   let sourceURL = URL(string: sourceURLString) else {
-                return nil
-            }
+                      return nil
+                  }
             print("Iframe src URL: \(sourceURL.absoluteString)")
             return sourceURL
         } catch {
@@ -714,8 +1221,8 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
             guard let element = try doc.select("[data-video-src]").first(),
                   let sourceURLString = try element.attr("data-video-src").nilIfEmpty,
                   let sourceURL = URL(string: sourceURLString) else {
-                return nil
-            }
+                      return nil
+                  }
             print("Data-video-src URL: \(sourceURL.absoluteString)")
             return sourceURL
         } catch {
@@ -757,17 +1264,7 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
                     }
                     
                     DispatchQueue.main.async {
-                        self.showQualityPicker(qualities: self.availableQualities) { selectedQuality in
-                            guard let selectedQuality = selectedQuality,
-                                  let selectedVideoData = videoDataArray.first(where: { $0["label"] as? String == selectedQuality }),
-                                  let selectedURLString = selectedVideoData["src"] as? String,
-                                  let selectedURL = URL(string: selectedURLString) else {
-                                completion(nil)
-                                return
-                            }
-                            
-                            completion(selectedURL)
-                        }
+                        self.choosePreferredQuality(availableQualities: self.availableQualities, videoDataArray: videoDataArray, completion: completion)
                     }
                     
                 } else {
@@ -783,6 +1280,34 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
         task.resume()
     }
     
+    private func choosePreferredQuality(availableQualities: [String], videoDataArray: [[String: Any]], completion: @escaping (URL?) -> Void) {
+        let preferredQuality = UserDefaults.standard.string(forKey: "preferredQuality") ?? "1080p"
+        
+        var selectedQuality: String? = nil
+        var closestQuality: String? = nil
+        
+        for quality in availableQualities {
+            if quality == preferredQuality {
+                selectedQuality = quality
+                break
+            } else if closestQuality == nil || abs(preferredQuality.compare(quality).rawValue) < abs(preferredQuality.compare(closestQuality!).rawValue) {
+                closestQuality = quality
+            }
+        }
+        
+        let finalSelectedQuality = selectedQuality ?? closestQuality
+        
+        if let finalQuality = finalSelectedQuality,
+           let selectedVideoData = videoDataArray.first(where: { $0["label"] as? String == finalQuality }),
+           let selectedURLString = selectedVideoData["src"] as? String,
+           let selectedURL = URL(string: selectedURLString) {
+            completion(selectedURL)
+        } else {
+            print("No suitable quality option found")
+            completion(nil)
+        }
+    }
+    
     private func showQualityPicker(qualities: [String], completion: @escaping (String?) -> Void) {
         let alertController = UIAlertController(title: "Choose Video Quality", message: nil, preferredStyle: .actionSheet)
         
@@ -793,11 +1318,6 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
             alertController.addAction(action)
         }
         
-        let cancelAction = UIAlertAction(title: "Cancel", style: .cancel) { _ in
-            completion(nil)
-        }
-        alertController.addAction(cancelAction)
-        
         if let popoverController = alertController.popoverPresentationController {
             popoverController.sourceView = view
             popoverController.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 0, height: 0)
@@ -806,7 +1326,7 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
         
         present(alertController, animated: true, completion: nil)
     }
-
+    
     func playVideo(sourceURL: URL, cell: EpisodeCell, fullURL: String) {
         let selectedPlayer = UserDefaults.standard.string(forKey: "mediaPlayerSelected") ?? "Default"
         let isToDownload = UserDefaults.standard.bool(forKey: "isToDownload")
@@ -850,13 +1370,16 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
             print("Download failed with error: \(error.localizedDescription)")
         }
     }
-
+    
     private func playVideoWithSelectedPlayer(player: String, sourceURL: URL, cell: EpisodeCell, fullURL: String) {
         switch player {
-        case "Default":
-            playVideoWithAVPlayer(sourceURL: sourceURL, cell: cell, fullURL: fullURL)
-        case "Infuse", "VLC", "Outplayer":
+        case "Infuse", "VLC", "OutPlayer":
             openInExternalPlayer(player: player, url: sourceURL)
+        case "Experimental":
+            let videoTitle = animeTitle
+            let viewController = CustomPlayerView(videoTitle: videoTitle ?? "", videoURL: sourceURL)
+            viewController.modalPresentationStyle = .fullScreen
+            self.present(viewController, animated: true, completion: nil)
         default:
             playVideoWithAVPlayer(sourceURL: sourceURL, cell: cell, fullURL: fullURL)
         }
@@ -869,10 +1392,11 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
             scheme = "infuse://x-callback-url/play?url="
         case "VLC":
             scheme = "vlc://"
-        case "Outplayer":
+        case "OutPlayer":
             scheme = "outplayer://"
         default:
             print("Unsupported player")
+            showAlert(title: "Error", message: "Unsupported player")
             return
         }
         
@@ -889,13 +1413,20 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
         }
     }
     
+    func openHiAnimeExperimental(url: URL, subURL: URL) {
+        let videoTitle = animeTitle
+        let viewController = CustomPlayerView(videoTitle: videoTitle ?? "", videoURL: url, subURL: subURL)
+        viewController.modalPresentationStyle = .fullScreen
+        self.present(viewController, animated: true, completion: nil)
+    }
+    
     private func playVideoWithAVPlayer(sourceURL: URL, cell: EpisodeCell, fullURL: String) {
         if GCKCastContext.sharedInstance().castState == .connected {
             proceedWithCasting(videoURL: sourceURL)
         } else {
             player = AVPlayer(url: sourceURL)
             
-            playerViewController = UserDefaults.standard.bool(forKey: "AlwaysLandscape") ? LandscapePlayer() : AVPlayerViewController()
+            playerViewController = UserDefaults.standard.bool(forKey: "AlwaysLandscape") ? LandscapePlayer() : NormalPlayer()
             playerViewController?.player = player
             playerViewController?.delegate = self
             playerViewController?.entersFullScreenWhenPlaybackBegins = true
@@ -942,15 +1473,15 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
             print("Failed to set up AVAudioSession: \(error)")
         }
     }
-
+    
     private func addPeriodicTimeObserver(cell: EpisodeCell, fullURL: String) {
         let interval = CMTime(seconds: 1.0, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
         timeObserverToken = player?.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
             guard let self = self,
                   let currentItem = self.player?.currentItem,
                   currentItem.duration.seconds.isFinite else {
-                return
-            }
+                      return
+                  }
             
             let currentTime = time.seconds
             let duration = currentItem.duration.seconds
@@ -961,6 +1492,7 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
             
             UserDefaults.standard.set(currentTime, forKey: "lastPlayedTime_\(fullURL)")
             UserDefaults.standard.set(duration, forKey: "totalTime_\(fullURL)")
+            print(fullURL)
             
             let episodeNumber = Int(cell.episodeNumber) ?? 0
             let selectedMediaSource = UserDefaults.standard.string(forKey: "selectedMediaSource") ?? "AnimeWorld"
@@ -996,7 +1528,7 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
             }
         }
     }
-
+    
     func fetchAnimeID(title: String, completion: @escaping (Int) -> Void) {
         AnimeService.fetchAnimeID(byTitle: title) { result in
             switch result {
@@ -1048,7 +1580,6 @@ class AnimeDetailViewController: UITableViewController, WKNavigationDelegate, GC
     }
     
     func downloadMedia(for episode: Episode) {
-        print("Downloading episode: \(episode.number)")
         guard let cell = tableView.cellForRow(at: IndexPath(row: episodes.firstIndex(where: { $0.href == episode.href }) ?? 0, section: 2)) as? EpisodeCell else {
             print("Error: Could not get cell for episode \(episode.number)")
             return
@@ -1074,7 +1605,7 @@ class ContinueWatchingCell: UICollectionViewCell {
     private let blurEffectView: UIVisualEffectView = {
         let effect = UIBlurEffect(style: .dark)
         let blurEffectView = UIVisualEffectView(effect: effect)
-        blurEffectView.alpha = 0.7
+        blurEffectView.alpha = 0.75
         return blurEffectView
     }()
     
@@ -1107,7 +1638,7 @@ class ContinueWatchingCell: UICollectionViewCell {
         contentView.addSubview(titleLabel)
         imageView.addSubview(blurEffectView)
         imageView.addSubview(progressView)
-
+        
         imageView.contentMode = .scaleAspectFill
         imageView.clipsToBounds = true
         imageView.layer.cornerRadius = 8
@@ -1118,7 +1649,7 @@ class ContinueWatchingCell: UICollectionViewCell {
         titleLabel.textAlignment = .left
         
         progressView.progressTintColor = .systemTeal
-
+        
         imageView.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         progressView.translatesAutoresizingMaskIntoConstraints = false
@@ -1171,8 +1702,8 @@ class ContinueWatchingCell: UICollectionViewCell {
                   let imageURL = imageURL,
                   self.currentAnimeTitle == item.animeTitle,
                   self.currentEpisodeNumber == item.episodeNumber else {
-                return
-            }
+                      return
+                  }
             
             if let url = URL(string: imageURL) {
                 self.imageLoadTask = self.imageView.kf.setImage(

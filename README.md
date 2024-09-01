@@ -1,12 +1,12 @@
 # Ryu
 
-<div align="center">
+<div align="center"> 
 
 <img src="https://raw.githubusercontent.com/cranci1/Ryu/main/Ryu/Assets.xcassets/AppIcon.appiconset/1024.jpg" width="240px">
 
 [![Build and Release IPA](https://github.com/cranci1/Ryu/actions/workflows/build.yml/badge.svg)](https://github.com/cranci1/Ryu/actions/workflows/build.yml) [![Platform](https://img.shields.io/badge/Platform-iOS%20%7C%20iPadOS%2014.0%2B-orange?logo=apple&logoColor=white)](https://img.shields.io/badge/Platform-iOS%20%7C%20iPadOS%2014.0%2B-red?logo=apple&logoColor=white) [![Commit](https://custom-icon-badges.demolab.com/github/last-commit/cranci1/Ryu)](https://custom-icon-badges.demolab.com/github/last-commit/cranci1/Ryu) [![Version](https://custom-icon-badges.demolab.com/github/v/release/cranci1/Ryu)](https://custom-icon-badges.demolab.com/github/v/release/cranci1/Ryu) [![Testflight](https://img.shields.io/badge/Join-Testflight-008080)](https://testflight.apple.com/join/Sxyg9JXF) [![Discord](https://img.shields.io/discord/1260315262272536698.svg?logo=discord&color=blue)](https://discord.gg/vjSTWbpeHa)
 
-A simple way to enjoy and watch anime on iOS devices
+A simple way to enjoy and watch anime on iOS
 
 </div>
 
@@ -22,6 +22,7 @@ A simple way to enjoy and watch anime on iOS devices
 - [Contributing](#contributing)
 - [Localization](#localization)
 - [License](#license)
+- [Legal](#legal)
 
 ## Features
 
@@ -34,6 +35,8 @@ A simple way to enjoy and watch anime on iOS devices
 - [x] Google Cast support
 - [x] Backup system (import, export)
 - [x] Offline mode (with ongoing improvements)
+- [x] Apple KeyChain support for the AniList Token
+- [x] External Media Player support (VLC, Infuse, OutPlayer)
 - [ ] Notifications for new episodes (coming soon)
 - [ ] macOS support
 
@@ -42,12 +45,14 @@ A simple way to enjoy and watch anime on iOS devices
 | Sources     | Language   | Search | AnimeInfo | Streaming | Download |
 | ----------- | ---------- | ------ | --------- | --------- | -------- |
 | AnimeWorld  | Italian    | ✅     | ✅        | ✅        | ✅       |
-| GoGoAnime   | English    | ✅     | ✅        | ✅        | :x:      |
+| GoGoAnime   | English    | ✅     | ✅        | ✅        | ⚠️       |
 | AnimeHeaven | English    | ✅     | ✅        | ✅        | ✅       |
 | AnimeFire   | Portuguese | ✅     | ✅        | ✅        | ✅       |
 | Kuramanime  | Indonesian | ✅     | ✅        | ✅        | ✅       |
 | Anime3rb    | Arabic     | ✅     | ✅        | ✅        | ✅       |
 | JKanime     | Spanish    | ✅     | ✅        | ✅        | :x:      |
+| HiAnime     | English    | ✅     | ✅        | ✅        | :x:      |
+| ZoroTv      | English    | ✅     | ✅        | ✅        | :x:      |
 
 > [!Note]
 > AnimeFire is region Blocked. Only Portugal and Brazil IP are allowed!
@@ -99,6 +104,7 @@ Ryu contains code from the following open-source projects:
 - [SwiftSoup](https://github.com/scinfu/SwiftSoup) - MIT License
 - [KingFisher](https://github.com/onevcat/Kingfisher) - MIT License
 - [Alamofire](https://github.com/Alamofire/Alamofire) - MIT License
+- [AniWatch-api](https://github.com/ghoshritesh12/aniwatch-api) - MIT License - [self-hosted](https://aniwatch.cranci.xyz)
 - [GoogleCastSDK-ios-no-bluetooth](https://github.com/onevcat/Kingfisher) - Google Developer Terms
 
 ## Contributing
@@ -141,3 +147,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with Ryu. If not, see <https://www.gnu.org/licenses/>.
 ```
+
+## Legal
+
+The content available is not affiliated with the developer, all contents are obtained by non-affiliated sources. Ryu doesn't store anything server side.
