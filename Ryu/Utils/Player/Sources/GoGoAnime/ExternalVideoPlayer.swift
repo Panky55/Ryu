@@ -8,7 +8,10 @@
 import AVKit
 import WebKit
 import Combine
+
+#if canImport(GoogleCast)
 import GoogleCast
+#endif
 
 class ExternalVideoPlayer: UIViewController, WKNavigationDelegate, CustomPlayerViewDelegate {
     func customPlayerViewDidDismiss() {
@@ -340,6 +343,7 @@ class ExternalVideoPlayer: UIViewController, WKNavigationDelegate, CustomPlayerV
         }
     }
     
+    #if os(iOS)
     private func castVideoToGoogleCast(videoURL: URL) {
         DispatchQueue.main.async {
             let metadata = GCKMediaMetadata(metadataType: .movie)
@@ -389,6 +393,7 @@ class ExternalVideoPlayer: UIViewController, WKNavigationDelegate, CustomPlayerV
             }
         }
     }
+    #endif
     
     private func playVideo(url: String) {
         guard let videoURL = URL(string: url) else {

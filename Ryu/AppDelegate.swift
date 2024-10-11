@@ -6,8 +6,11 @@
 //
 
 import UIKit
-import GoogleCast
 import AVFoundation
+
+#if canImport(GoogleCast)
+import GoogleCast
+#endif
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -55,8 +58,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
     
     private func setupGoogleCast() {
+        #if os(iOS)
         let options = GCKCastOptions(discoveryCriteria: GCKDiscoveryCriteria(applicationID: kGCKDefaultMediaReceiverApplicationID))
         GCKCastContext.setSharedInstanceWith(options)
+        #endif
     }
     
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {

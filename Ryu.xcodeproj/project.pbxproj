@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		131546D52C6DE6CC002DC3CC /* GoogleCastSDK-ios-no-bluetooth in Frameworks */ = {isa = PBXBuildFile; productRef = 131546D42C6DE6CC002DC3CC /* GoogleCastSDK-ios-no-bluetooth */; };
+		131546D52C6DE6CC002DC3CC /* GoogleCastSDK-ios-no-bluetooth in Frameworks */ = {isa = PBXBuildFile; platformFilter = ios; productRef = 131546D42C6DE6CC002DC3CC /* GoogleCastSDK-ios-no-bluetooth */; settings = {ATTRIBUTES = (Weak, ); }; };
 		131546D82C6DE6D9002DC3CC /* Kingfisher in Frameworks */ = {isa = PBXBuildFile; productRef = 131546D72C6DE6D9002DC3CC /* Kingfisher */; };
 		131546DE2C6DE6F2002DC3CC /* Alamofire in Frameworks */ = {isa = PBXBuildFile; productRef = 131546DD2C6DE6F2002DC3CC /* Alamofire */; };
 		1357B5032C6D0965000A2C9B /* Settings.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 1357B4F12C6D0965000A2C9B /* Settings.storyboard */; };
@@ -179,6 +179,7 @@
 		13A888B12C7A305500D6C597 /* CustomPlayer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CustomPlayer.swift; sourceTree = "<group>"; };
 		13A888B32C7A322600D6C597 /* CustomPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomPlayerView.swift; sourceTree = "<group>"; };
 		13B40E202CB191D900EF964A /* AnimeInfo+Struct.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AnimeInfo+Struct.swift"; sourceTree = "<group>"; };
+		13CB54C62CB967780045BEFF /* Ryu.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Ryu.entitlements; sourceTree = "<group>"; };
 		13E7F8172C9031A7007550B9 /* SettingsViewTranslation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewTranslation.swift; sourceTree = "<group>"; };
 		13FD4DD62C9C61450056E90B /* AnimeDetailsMethods.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimeDetailsMethods.swift; sourceTree = "<group>"; };
 		13FD4DD82C9C61C30056E90B /* ContinueWatchingCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContinueWatchingCell.swift; sourceTree = "<group>"; };
@@ -276,6 +277,7 @@
 		1365249E2C6B5B2F00210A98 /* Ryu */ = {
 			isa = PBXGroup;
 			children = (
+				13CB54C62CB967780045BEFF /* Ryu.entitlements */,
 				136524B32C6B5B4000210A98 /* AnimeListing Service */,
 				136524CD2C6B5B4000210A98 /* Sources */,
 				136525002C6B5B4000210A98 /* Utils */,
@@ -930,6 +932,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Ryu/Ryu.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 399LMK6Q2Y;
@@ -949,6 +952,7 @@
 				MARKETING_VERSION = 1.0.4;
 				PRODUCT_BUNDLE_IDENTIFIER = me.cranci.Ryu;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTS_MACCATALYST = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -960,6 +964,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Ryu/Ryu.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 399LMK6Q2Y;
@@ -979,6 +984,7 @@
 				MARKETING_VERSION = 1.0.4;
 				PRODUCT_BUNDLE_IDENTIFIER = me.cranci.Ryu;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTS_MACCATALYST = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";

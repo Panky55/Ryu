@@ -7,10 +7,13 @@
 
 import UIKit
 import AVKit
-import GoogleCast
 import SafariServices
 
-class AnimeDetailViewController: UITableViewController, GCKRemoteMediaClientListener, AVPlayerViewControllerDelegate {
+#if canImport(GoogleCast)
+import GoogleCast
+#endif
+
+class AnimeDetailViewController: UITableViewController, AVPlayerViewControllerDelegate {
     var animeTitle: String?
     var imageUrl: String?
     var href: String?
@@ -56,7 +59,7 @@ class AnimeDetailViewController: UITableViewController, GCKRemoteMediaClientList
         setupNotifications()
         checkFavoriteStatus()
         setupAudioSession()
-        setupCastButton()
+        setupCastButtonIfNeeded()
         
         isReverseSorted = UserDefaults.standard.bool(forKey: "isEpisodeReverseSorted")
         setupUserDefaultsObserver()
@@ -79,29 +82,35 @@ class AnimeDetailViewController: UITableViewController, GCKRemoteMediaClientList
     override func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
         cell.backgroundColor = .secondarySystemBackground
     }
-
+    
     private func setupRefreshControl() {
         refreshControl = UIRefreshControl()
         refreshControl?.addTarget(self, action: #selector(handleRefresh), for: .valueChanged)
     }
-
+    
     @objc private func handleRefresh() {
         refreshAnimeDetails()
     }
     
-    private func setupCastButton() {
-        let castButton = GCKUICastButton(frame: CGRect(x: 0, y: 0, width: 24, height: 24))
-        navigationItem.rightBarButtonItem = UIBarButtonItem(customView: castButton)
+    private func setupCastButtonIfNeeded() {
+#if os(iOS)
+        if GCKCastContext.sharedInstance().sessionManager.hasConnectedCastSession() {
+            let castButton = GCKUICastButton(frame: CGRect(x: 0, y: 0, width: 24, height: 24))
+            navigationItem.rightBarButtonItem = UIBarButtonItem(customView: castButton)
+        }
+#endif
     }
     
     deinit {
         NotificationCenter.default.removeObserver(self)
         NotificationCenter.default.removeObserver(self, name: UserDefaults.didChangeNotification, object: nil)
         
+#if os(iOS)
         if let castSession = GCKCastContext.sharedInstance().sessionManager.currentCastSession,
            let remoteMediaClient = castSession.remoteMediaClient {
             remoteMediaClient.remove(self)
         }
+#endif
     }
     
     private func toggleFavorite() {
@@ -911,6 +920,7 @@ class AnimeDetailViewController: UITableViewController, GCKRemoteMediaClientList
         }.resume()
     }
     
+    #if os(iOS)
     private func proceedWithCasting(videoURL: URL) {
         DispatchQueue.main.async {
             let metadata = GCKMediaMetadata(metadataType: .movie)
@@ -988,6 +998,7 @@ class AnimeDetailViewController: UITableViewController, GCKRemoteMediaClientList
             }
         }
     }
+    #endif
     
     func playVideo(sourceURL: URL, cell: EpisodeCell, fullURL: String) {
         let selectedPlayer = UserDefaults.standard.string(forKey: "mediaPlayerSelected") ?? "Default"
@@ -1281,3 +1292,7 @@ extension AnimeDetailViewController: SynopsisCellDelegate {
         tableView.reloadSections(IndexSet(integer: 1), with: .automatic)
     }
 }
+
+#if os(iOS)
+extension AnimeDetailViewController: GCKRemoteMediaClientListener {}
+#endif

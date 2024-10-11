@@ -8,7 +8,10 @@
 import AVKit
 import WebKit
 import SwiftSoup
+
+#if canImport(GoogleCast)
 import GoogleCast
+#endif
 
 class ExternalVideoPlayerKura: UIViewController, GCKRemoteMediaClientListener {
     private let streamURL: String

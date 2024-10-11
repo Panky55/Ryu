@@ -8,7 +8,10 @@
 import AVKit
 import WebKit
 import Combine
+
+#if canImport(GoogleCast)
 import GoogleCast
+#endif
 
 class ExternalVideoPlayerGoGo2: UIViewController, WKNavigationDelegate, WKScriptMessageHandler, GCKRemoteMediaClientListener {
     private var downloader = M3U8Downloader()

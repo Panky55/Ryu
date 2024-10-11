@@ -7,7 +7,10 @@
 
 import AVKit
 import WebKit
+
+#if canImport(GoogleCast)
 import GoogleCast
+#endif
 
 class ExternalVideoPlayerJK: UIViewController, WKNavigationDelegate, GCKRemoteMediaClientListener {
     private let streamURL: String
