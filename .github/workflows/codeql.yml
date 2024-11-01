@@ -79,7 +79,13 @@ jobs:
     - if: matrix.build-mode == 'manual'
       shell: bash
       run: |
-     ipabuild.sh
+     chmod +x ipabuild.sh
+          ./ipabuild.sh
+
+    - name: Use Node.js 20
+      uses: actions/setup-node@v4
+      with:
+      node-version: '20'
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
